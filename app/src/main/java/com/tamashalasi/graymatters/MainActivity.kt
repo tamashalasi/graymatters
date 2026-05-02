@@ -64,7 +64,7 @@ fun GrayscaleController() {
         }
     }
 
-    var unlockTimeInput by remember { mutableStateOf("5") } // Default 5 seconds
+    var unlockTimeInput by remember { mutableStateOf(GrayscaleUtils.getUnlockTimeout(context)) }
     var holdProgress by remember { mutableFloatStateOf(0f) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
@@ -93,6 +93,7 @@ fun GrayscaleController() {
                 onValueChange = { 
                     if (it.all { char -> char.isDigit() }) {
                         unlockTimeInput = it
+                        GrayscaleUtils.setUnlockTimeout(context, it)
                         errorMessage = null
                     }
                 },
