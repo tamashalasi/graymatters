@@ -10,7 +10,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
 import com.tamashalasi.graymatters.ui.theme.GrayMattersTheme
-import android.content.Context
 import android.provider.Settings
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
@@ -20,7 +19,10 @@ import androidx.compose.foundation.gestures.waitForUpOrCancellation
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import androidx.compose.runtime.getValue
@@ -46,7 +48,22 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun GrayscaleController() {
     val context = LocalContext.current
-    var isGrayscaleEnabled by remember { mutableStateOf(checkGrayscaleStatus(context)) }
+    var isGrayscaleEnabled by remember { mutableStateOf(GrayscaleUtils.checkGrayscaleStatus(context)) }
+
+    // Recheck grayscale status when the app is refocused/resumed
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                isGrayscaleEnabled = GrayscaleUtils.checkGrayscaleStatus(context)
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+        }
+    }
+
     var unlockTimeInput by remember { mutableStateOf("5") } // Default 5 seconds
     var holdProgress by remember { mutableFloatStateOf(0f) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
@@ -92,7 +109,7 @@ fun GrayscaleController() {
                         errorMessage = "Please enter a valid time."
                         return@Button
                     }
-                    if (setGrayscale(context, true)) {
+                    if (GrayscaleUtils.setGrayscale(context, true)) {
                         isGrayscaleEnabled = true
                         errorMessage = null
                     } else {
@@ -137,7 +154,7 @@ fun GrayscaleController() {
                                         holdProgress = (elapsed.toFloat() / requiredTimeMs).coerceAtMost(1f)
 
                                         if (elapsed >= requiredTimeMs) {
-                                            if (setGrayscale(context, false)) {
+                                            if (GrayscaleUtils.setGrayscale(context, enable = false)) {
                                                 isGrayscaleEnabled = false
                                                 errorMessage = null
                                             } else {
@@ -166,7 +183,7 @@ fun GrayscaleController() {
                     Text(
                         "Hold to Disable (${unlockTimeInput}s)",
                         color = MaterialTheme.colorScheme.onPrimary,
-                        style = MaterialTheme.typography.titleMedium
+                        style = MaterialTheme.typography.titleMedium,
                     )
                 }
             }
@@ -174,26 +191,6 @@ fun GrayscaleController() {
     }
 }
 
-// Logic to check system settings
-fun checkGrayscaleStatus(context: Context): Boolean {
-    return Settings.Secure.getInt(
-        context.contentResolver,
-        "accessibility_display_daltonizer_enabled", 0
-    ) == 1
-}
-
-// Logic to write system settings
-fun setGrayscale(context: Context, enable: Boolean): Boolean {
-    return try {
-        val mode = if (enable) 0 else -1 // 0 is grayscale, -1 is disabled
-        val success1 = Settings.Secure.putInt(context.contentResolver, "accessibility_display_daltonizer_enabled", if (enable) 1 else 0)
-        val success2 = Settings.Secure.putInt(context.contentResolver, "accessibility_display_daltonizer", mode)
-        success1 && success2
-    } catch (e: Exception) {
-        e.printStackTrace()
-        false
-    }
-}
 
 @Preview(showBackground = true)
 @Composable
